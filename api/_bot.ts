@@ -43,35 +43,35 @@ bot.use(conversations());
 // Note: This function now operates on the simpler `BaseContext`.
 async function agendarConversation(conversation: MyConversation, ctx: BaseContext) {
   try {
-    await ctx.reply("¡Claro! Empecemos con tu cita. ¿Cuál es tu nombre completo?");
-    const name = (await conversation.form.text()).trim();
-    if (!name) {
-      await ctx.reply("El nombre no puede estar vacío. Por favor, intenta de nuevo.");
-      return;
+    await ctx.reply("¡Claro! Empecemos con tu cita. ¿Cuál es tu nombre completo? (o usa /cancel para salir)");
+    let name = (await conversation.form.text()).trim();
+    while (!name || name.length > 100) {
+      await ctx.reply("El nombre es inválido. Debe tener entre 1 y 100 caracteres. Inténtalo de nuevo.");
+      name = (await conversation.form.text()).trim();
     }
     ctx.session.customerName = name;
 
     await ctx.reply("¿Cuál es tu número de teléfono (con código de área)?");
-    const phone = (await conversation.form.text()).trim();
-    if (!phone) {
-      await ctx.reply("El número de teléfono no puede estar vacío. Por favor, intenta de nuevo.");
-      return;
+    let phone = (await conversation.form.text()).trim();
+    while (!/^[0-9+\s-]{7,20}$/.test(phone)) {
+      await ctx.reply("El teléfono es inválido. Ingresa un número de entre 7 y 20 dígitos. Inténtalo de nuevo.");
+      phone = (await conversation.form.text()).trim();
     }
     ctx.session.customerPhone = phone;
 
     await ctx.reply("¿Cuál es la marca y modelo de tu vehículo (ej: Toyota Corolla)?");
-    const vehicle = (await conversation.form.text()).trim();
-    if (!vehicle) {
-      await ctx.reply("La marca y modelo del vehículo no pueden estar vacíos. Por favor, intenta de nuevo.");
-      return;
+    let vehicle = (await conversation.form.text()).trim();
+    while (!vehicle || vehicle.length > 100) {
+      await ctx.reply("La marca y modelo son inválidos. Deben tener entre 1 y 100 caracteres. Inténtalo de nuevo.");
+      vehicle = (await conversation.form.text()).trim();
     }
     ctx.session.vehicleMakeModel = vehicle;
 
     await ctx.reply("Por favor, describe brevemente el problema o servicio que necesitas:");
-    const problem = (await conversation.form.text()).trim();
-    if (!problem) {
-      await ctx.reply("La descripción del problema no puede estar vacía. Por favor, intenta de nuevo.");
-      return;
+    let problem = (await conversation.form.text()).trim();
+    while (!problem || problem.length > 500) {
+      await ctx.reply("La descripción es inválida. Debe tener entre 1 y 500 caracteres. Inténtalo de nuevo.");
+      problem = (await conversation.form.text()).trim();
     }
     ctx.session.problemDescription = problem;
 
@@ -137,9 +137,28 @@ async function agendarConversation(conversation: MyConversation, ctx: BaseContex
 // assertion simply bypasses the faulty check at the point of registration.
 bot.use(createConversation(agendarConversation as any));
 
+// Command to cancel any ongoing conversation
+bot.command("cancel", async (ctx: MyContext) => {
+  await ctx.conversation.exit();
+  ctx.session = {}; // Clear session data
+  await ctx.reply("Acción cancelada. No se ha guardado ninguna información. Puedes empezar de nuevo cuando quieras.");
+});
+
 // /start command - receives the full `MyContext`
 bot.command("start", (ctx: MyContext) => {
-  ctx.reply("¡Hola! Soy un bot de Telegram desplegado en Vercel. ¡Listo para automatizar!");
+  const welcomeMessage = `
+**¡Bienvenido a Diagnóstico BORG!** 🚗💨
+
+Tu asistente de confianza para el cuidado de tu vehículo. Estoy aquí para ayudarte a agendar citas, consultar el estado de tu servicio y obtener cotizaciones, todo de forma rápida y sencilla.
+
+**¿Qué necesitas hacer hoy?**
+
+- Para agendar una nueva cita, usa el comando /agendar.
+- Para consultar el estado de un servicio, usa /estado.
+
+¡Estamos para servirte!
+  `;
+  ctx.reply(welcomeMessage, { parse_mode: "Markdown" });
 });
 
 // /agendar command - receives the full `MyContext` to access `.conversation`
