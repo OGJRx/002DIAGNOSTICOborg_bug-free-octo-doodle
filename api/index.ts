@@ -17,19 +17,4 @@ bot.command("start", (ctx) => {
 });
 
 // Exportar el manejador de webhook para Vercel
-export default async (request: VercelRequest, response: VercelResponse) => {
-  try {
-    // Asegurarse de que el cuerpo de la solicitud es un objeto
-    if (typeof request.body !== 'object' || request.body === null) {
-      console.error("Cuerpo de la solicitud inválido:", request.body);
-      return response.status(400).send("Cuerpo de la solicitud inválido");
-    }
-
-    // Usar el manejador de webhook de grammY
-    await webhookCallback(bot, "vercel")(request, response);
-  } catch (error) {
-    console.error("Error al procesar la solicitud del webhook:", error);
-    // Enviar una respuesta genérica en caso de error
-    return response.status(500).send("Error interno del servidor");
-  }
-};
+export default webhookCallback(bot, "vercel");
