@@ -1,39 +1,34 @@
-import { Bot } from "grammy";
-import { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { bot } from "./_bot";
 
-// Cargar variables de entorno
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+// --- INICIALIZACIÓN EFICIENTE ---
+// Creamos una promesa que se resuelve cuando bot.init() termina.
+// Esto se ejecuta UNA SOLA VEZ cuando la instancia de Vercel arranca ("cold start").
+const initializePromise = bot.init();
 
-if (!BOT_TOKEN) {
-  throw new Error("TELEGRAM_BOT_TOKEN no está configurado en las variables de entorno.");
-}
-
-// Inicializar el bot
-const bot = new Bot(BOT_TOKEN);
-
-// Comando de bienvenida
-bot.command("start", (ctx) => {
-  ctx.reply("¡Hola! Soy un bot de Telegram desplegado en Vercel. ¡Listo para automatizar!");
-});
-
-// Exportar el manejador de webhook para Vercel
+/**
+ * El handler principal de la Vercel Function.
+ * Es el único punto de entrada para todas las solicitudes al webhook.
+ */
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
   try {
-    // Asegurarse de que el método sea POST y que el cuerpo exista
+    // 1. Esperamos a que la inicialización se complete.
+    // En invocaciones "warm", esta promesa ya estará resuelta y continuará inmediatamente.
+    await initializePromise;
+
+    // 2. Pasamos el update al bot si la solicitud es válida.
     if (request.method === "POST" && request.body) {
-      // Inicializar el bot antes de manejar el update
-      await bot.init();
-      // Pasar el update directamente al bot
       await bot.handleUpdate(request.body);
     }
   } catch (error) {
-    console.error("Error al procesar el update manual:", error);
+    // Es crucial loguear el error para la depuración en Vercel.
+    console.error("Error en el handler principal:", error);
   }
 
-  // Responder siempre 200 OK a Telegram para evitar reintentos.
-  // El procesamiento real ocurre en segundo plano.
+  // 3. Respondemos 200 OK a Telegram inmediatamente.
+  // Esto evita reintentos de webhook, incluso si el procesamiento del bot falla.
   response.status(200).end();
 }
