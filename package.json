@@ -1,0 +1,19 @@
+{
+  "name": "telegram-bot-vercel-template",
+  "version": "1.0.0",
+  "description": "Plantilla de Telegram Bot con TypeScript y grammY para despliegue en Vercel.",
+  "main": "dist/api/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "grammy": "^1.24.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@vercel/node": "^3.1.5",
+    "typescript": "^5.4.5"
+  }
+}
