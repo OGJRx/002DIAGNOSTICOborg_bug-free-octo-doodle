@@ -24,6 +24,8 @@ export default async function handler(
   try {
     // Asegurarse de que el método sea POST y que el cuerpo exista
     if (request.method === "POST" && request.body) {
+      // Inicializar el bot antes de manejar el update
+      await bot.init();
       // Pasar el update directamente al bot
       await bot.handleUpdate(request.body);
     }
