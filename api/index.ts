@@ -1,4 +1,4 @@
-import { Bot, webhookCallback } from "grammy";
+import { Bot } from "grammy";
 import { VercelRequest, VercelResponse } from "@vercel/node";
 
 // Cargar variables de entorno
@@ -22,18 +22,16 @@ export default async function handler(
   response: VercelResponse,
 ) {
   try {
-    // Crear el manejador de grammY
-    const callback = webhookCallback(bot, "vercel");
-
-    // Asegurar que solo se procesen las solicitudes POST
-    if (request.method === "POST") {
-      await callback(request, response);
-    } else {
-      // Responder a otras solicitudes (ej. GET) con un mensaje de bienvenida
-      response.status(200).send("Bot de Telegram listo y escuchando.");
+    // Asegurarse de que el método sea POST y que el cuerpo exista
+    if (request.method === "POST" && request.body) {
+      // Pasar el update directamente al bot
+      await bot.handleUpdate(request.body);
     }
   } catch (error) {
-    console.error("Error al procesar la solicitud del webhook:", error);
-    response.status(500).send("Error interno del servidor");
+    console.error("Error al procesar el update manual:", error);
   }
+
+  // Responder siempre 200 OK a Telegram para evitar reintentos.
+  // El procesamiento real ocurre en segundo plano.
+  response.status(200).end();
 }
