@@ -4,15 +4,23 @@
   "description": "Plantilla de Telegram Bot con TypeScript y grammY para despliegue en Vercel.",
   "main": "dist/api/index.js",
   "scripts": {
-    "dev": "vercel dev"
+    "dev": "vercel dev",
+    "build": "tsc",
+    "set-webhook": "node dist/scripts/set-webhook.js",
+    "test": "vitest",
+    "postbuild": "npm run set-webhook"
   },
   "dependencies": {
+    "@grammyjs/conversations": "^2.1.1",
+    "dotenv": "^16.4.5",
     "grammy": "^1.24.0",
-    "dotenv": "^16.4.5"
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",
+    "@types/pg": "^8.15.6",
     "@vercel/node": "^3.1.5",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.12"
   }
 }

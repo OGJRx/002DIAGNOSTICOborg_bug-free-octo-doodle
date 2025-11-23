@@ -5,7 +5,8 @@ import {
   type Conversation,
   type ConversationFlavor,
 } from "@grammyjs/conversations";
-import { query } from "./_db";
+import { fmt } from "@grammyjs/parse-mode"; // New import
+import { query, createJob, getJobById, listJobs } from "./_db";
 
 // 1. Define the type for the session data.
 interface SessionData {
@@ -13,6 +14,7 @@ interface SessionData {
   customerPhone?: string;
   vehicleMakeModel?: string;
   problemDescription?: string;
+  scheduled_date?: string; // Add scheduled_date to session
 }
 
 // 2. Define a BASE context that includes the session. This is for the conversation logic.
@@ -28,6 +30,17 @@ type MyConversation = Conversation<BaseContext>;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
   throw new Error("FATAL: TELEGRAM_BOT_TOKEN no está configurado en las variables de entorno.");
+}
+
+const STAFF_IDS_ENV = process.env.STAFF_IDS;
+const STAFF_IDS = STAFF_IDS_ENV ? STAFF_IDS_ENV.split(',').map(id => parseInt(id.trim(), 10)) : [];
+if (STAFF_IDS.length === 0) {
+    console.warn("WARNING: STAFF_IDS no está configurado o está vacío. La funcionalidad de la Mini App para el personal podría no funcionar.");
+}
+
+// Helper function to check if a user is staff
+function isStaff(userId: number): boolean {
+    return STAFF_IDS.includes(userId);
 }
 
 // The bot instance is typed with our final, composed `MyContext`.
@@ -75,14 +88,25 @@ async function agendarConversation(conversation: MyConversation, ctx: BaseContex
     }
     ctx.session.problemDescription = problem;
 
+    await ctx.reply("¿Para qué fecha te gustaría agendar la cita? (Formato: AAAA-MM-DD)");
+    const dateInput = (await conversation.form.text()).trim();
+    const scheduled_date_obj = new Date(dateInput);
+    if (isNaN(scheduled_date_obj.getTime())) {
+        await ctx.reply("Formato de fecha inválido. Por favor, usa AAAA-MM-DD. Intenta de nuevo.");
+        return;
+    }
+    // Store in session for confirmation
+    ctx.session.scheduled_date = dateInput; // Store as YYYY-MM-DD string
+
     // Final confirmation before saving
     await ctx.reply(
-      `Confirmación de tu cita:\n` +
-      `Nombre: ${ctx.session.customerName}\n` +
-      `Teléfono: ${ctx.session.customerPhone}\n` +
-      `Vehículo: ${ctx.session.vehicleMakeModel}\n` +
-      `Problema: ${ctx.session.problemDescription}\n\n` +
-      `¿Es correcto? (Sí/No)`
+      fmt`Confirmación de tu cita:\n` +
+      fmt`Nombre: ${fmt.escape(ctx.session.customerName || 'N/A')}\n` +
+      fmt`Teléfono: ${fmt.escape(ctx.session.customerPhone || 'N/A')}\n` +
+      fmt`Vehículo: ${fmt.escape(ctx.session.vehicleMakeModel || 'N/A')}\n` +
+      fmt`Problema: ${fmt.escape(ctx.session.problemDescription || 'N/A')}\n` +
+      fmt`Fecha Agendada: ${fmt.escape(ctx.session.scheduled_date || 'N/A')}\n\n` +
+      fmt`¿Es correcto? (Sí/No)`
     );
 
     const confirmation = (await conversation.form.text()).trim().toLowerCase();
@@ -91,32 +115,23 @@ async function agendarConversation(conversation: MyConversation, ctx: BaseContex
       return;
     }
 
-    // Insert into the database
-    const insertQuery = `
-      INSERT INTO jobs (
-        telegram_user_id,
-        telegram_chat_id,
-        customer_name,
-        customer_phone,
-        vehicle_make_model,
-        problem_description,
-        current_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'AGENDADO') RETURNING job_id;
-    `;
-    const result = await query(insertQuery, [
-      ctx.from?.id,
-      ctx.chat?.id,
-      ctx.session.customerName,
-      ctx.session.customerPhone,
-      ctx.session.vehicleMakeModel,
-      ctx.session.problemDescription,
-    ]);
+    // Use the createJob function to insert into the database
+    const newJob = await createJob(
+      ctx.from?.id as number, // telegram_user_id
+      ctx.chat?.id as number, // telegram_chat_id
+      ctx.session.customerName as string,
+      ctx.session.customerPhone as string,
+      ctx.session.vehicleMakeModel as string,
+      ctx.session.problemDescription as string,
+      'AGENDADO', // current_status, using the literal type from Job interface
+      ctx.session.scheduled_date ? new Date(ctx.session.scheduled_date) : null // scheduled_date
+    );
 
-    const jobId = result.rows[0].job_id;
+    const jobId = newJob.id;
     await ctx.reply(
-      `¡Gracias! Tu cita ha sido agendada con éxito. ` +
-      `Tu número de referencia es: #${jobId}.\n` +
-      `Pronto nos pondremos en contacto contigo.`
+      fmt`¡Gracias! Tu cita ha sido agendada con éxito. ` +
+      fmt`Tu número de referencia es: \#${jobId}.\n` + // Escaping '#' to avoid it being interpreted as Markdown
+      fmt`Pronto nos pondremos en contacto contigo.`
     );
 
   } catch (error) {
@@ -145,6 +160,76 @@ bot.command("start", (ctx: MyContext) => {
 // /agendar command - receives the full `MyContext` to access `.conversation`
 bot.command("agendar", async (ctx: MyContext) => {
   await ctx.conversation.enter("agendarConversation");
+});
+
+// /estado command - allows users to check job status
+bot.command("estado", async (ctx: MyContext) => {
+  if (!ctx.from?.id || !ctx.chat?.id) {
+    await ctx.reply("No pude identificar tu usuario o chat. Por favor, intenta de nuevo más tarde.");
+    return;
+  }
+
+  const userId = ctx.from.id;
+  const chatId = ctx.chat.id;
+  const jobIdArg = ctx.match; // Argument provided after /estado (e.g., "/estado 123")
+
+  try {
+    let message = "";
+    if (jobIdArg) {
+      // User provided a job ID
+      const jobId = parseInt(jobIdArg, 10);
+      if (isNaN(jobId)) {
+        await ctx.reply("Formato de ID de trabajo inválido. Por favor, envía /estado o /estado [ID_DE_TRABAJO].");
+        return;
+      }
+      const job = await getJobById(jobId);
+      if (job && (job.telegram_user_id === userId || job.telegram_chat_id === chatId)) {
+        // Ensure the job belongs to the user or chat requesting it
+        message = fmt`Estado de trabajo \#${job.id}:\n` +
+                  fmt`Cliente: ${fmt.escape(job.customer_name)}\n` +
+                  fmt`Vehículo: ${fmt.escape(job.vehicle_make_model)}\n` +
+                  fmt`Problema: ${fmt.escape(job.problem_description)}\n` +
+                  fmt`Estado actual: ${fmt.escape(job.current_status)}\n` +
+                  fmt`Agendado el: ${job.created_at.toLocaleString()}`; // Date is safe
+      } else {
+        message = `No se encontró un trabajo con ID #${jobId} asociado a tu cuenta.`;
+      }
+    } else {
+      // User wants to see all their jobs
+      const userJobs = await listJobs({ telegram_user_id: userId });
+      if (userJobs.length > 0) {
+        message = "Tus trabajos agendados:\n\n";
+        userJobs.forEach(job => {
+          message += fmt`ID: \#${job.id}\n` +
+                     fmt`Vehículo: ${fmt.escape(job.vehicle_make_model)}\n` +
+                     fmt`Problema: ${fmt.escape(job.problem_description)}\n` +
+                     fmt`Estado: ${fmt.escape(job.current_status)}\n` +
+                     fmt`Agendado el: ${job.created_at.toLocaleDateString()}\n\n`;
+        });
+      } else {
+        message = "No tienes trabajos agendados. Usa /agendar para crear uno.";
+      }
+    }
+    await ctx.reply(message);
+
+  } catch (error) {
+    console.error("Error in /estado command:", error);
+    await ctx.reply("Lo siento, hubo un error al consultar el estado de los trabajos. Por favor, intenta de nuevo más tarde.");
+  }
+});
+
+// /cotizar command - allows users to request a quote
+bot.command("cotizar", async (ctx: MyContext) => {
+  try {
+    await ctx.reply(
+      "Para obtener una cotización, por favor, describe el servicio que necesitas " +
+      "o el problema de tu vehículo con el mayor detalle posible. " +
+      "Nuestro equipo revisará tu solicitud y se pondrá en contacto contigo pronto."
+    );
+  } catch (error) {
+    console.error("Error in /cotizar command:", error);
+    await ctx.reply("Lo siento, hubo un error al procesar tu solicitud de cotización. Por favor, intenta de nuevo más tarde.");
+  }
 });
 
 // Export the bot instance so it can be used by the Vercel serverless function.

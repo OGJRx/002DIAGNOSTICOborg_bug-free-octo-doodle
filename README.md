@@ -1,63 +1,83 @@
-# Plantilla de Bot de Telegram para Vercel
+# DIAGNÓSTICO BORG - Plantilla de Bot de Telegram para Vercel
 
-Esta es una plantilla para desplegar un bot de Telegram usando [grammY](https://grammy.dev/) en [Vercel](https://vercel.com) con cero configuración.
+Esta plantilla implementa un bot de Telegram avanzado para la automatización de talleres automotrices, desplegable en Vercel. Está diseñado para ofrecer una solución de bajo coste ($0) para la gestión de citas y el seguimiento de trabajos, con una base sólida para una futura Mini App de gestión interna.
 
-## Configuración
+## 🚀 Capacidades Actuales y Potencial de Despliegue
 
-### 1. Obtener el Token del Bot
-Habla con [@BotFather](https://t.me/BotFather) en Telegram para crear un nuevo bot. Te proporcionará un token único.
+El bot DIAGNÓSTICO BORG ofrece las siguientes funcionalidades clave, accesibles mediante comandos de Telegram:
 
-### 2. Configurar Variables de Entorno
-Necesitas configurar el token de tu bot como una variable de entorno en Vercel.
+*   `/start`: Mensaje de bienvenida inicial y presentación del bot.
+*   `/agendar`: Un flujo conversacional paso a paso que guía al usuario para agendar una cita. Recopila la siguiente información:
+    *   Nombre del Cliente
+    *   Número de Teléfono
+    *   Marca y Modelo del Vehículo
+    *   Descripción del Problema/Servicio
+    *   Fecha Deseada para la Cita
+    Los datos se persisten de forma segura en una base de datos PostgreSQL.
+*   `/estado`: Permite a los usuarios consultar el estado de sus trabajos. Pueden hacerlo proporcionando un ID de trabajo específico (`/estado [ID_DE_TRABAJO]`) o listando todos los trabajos asociados a su cuenta de Telegram. La información se obtiene directamente de la base de datos.
+*   `/cotizar` - **Solicitud de Cotización Inicial (Lógica Avanzada en Desarrollo):** Un comando para que los usuarios soliciten una cotización. Actualmente, el bot solicita al usuario que describa su necesidad en detalle, sentando las bases para futuras implementaciones de lógica de precios más sofisticada.
 
-- **Nombre de la Variable**: `TELEGRAM_BOT_TOKEN`
-- **Valor**: El token que obtuviste del BotFather.
+## 🛠️ Stack Tecnológico
 
-Puedes añadir esta variable en la configuración de tu proyecto en Vercel, en la sección `Settings` > `Environment Variables`.
+*   **Lenguaje:** TypeScript
+*   **Plataforma de Despliegue:** Vercel Serverless Functions
+*   **Framework del Bot:** [grammY](https://grammy.dev/)
+*   **Base de Datos:** PostgreSQL (con [Supabase](https://supabase.io/) como proveedor recomendado para el tier gratuito)
+*   **ORM/Cliente DB:** `node-postgres` (`pg`)
 
-## Despliegue en Vercel
+## ⚙️ Guía de Despliegue para DevOps
 
-1.  **Crea un repositorio en GitHub, GitLab o Bitbucket** con los archivos de este proyecto.
-2.  **Importa el proyecto en Vercel**. Vercel detectará automáticamente que es un proyecto con `@vercel/node` y lo configurará por ti.
-3.  **Añade la variable de entorno** `TELEGRAM_BOT_TOKEN` como se describe arriba.
-4.  **Despliega**. Vercel te dará una URL de despliegue (por ejemplo, `https://tu-proyecto.vercel.app`).
+Sigue estos pasos para desplegar y configurar el bot DIAGNÓSTICO BORG en tu entorno de Vercel:
 
-## Conectar Telegram a Vercel (Configurar el Webhook)
+### 1. Configuración de la Base de Datos (Supabase)
 
-Una vez que tu proyecto esté desplegado, necesitas decirle a Telegram a dónde enviar las actualizaciones (los mensajes que recibe tu bot).
+El bot utiliza PostgreSQL para persistir los datos de trabajos y sesiones.
 
-Abre tu navegador y visita la siguiente URL, reemplazando los valores correspondientes:
+*   **1.1 Crear Proyecto en Supabase:** Crea un nuevo proyecto en Supabase (o tu proveedor de PostgreSQL preferido).
+*   **1.2 Obtener `POSTGRES_URL`:** Una vez creado el proyecto, ve a `Project Settings` > `Database` > `Connection String` para obtener la URL de conexión de tu base de datos.
+*   **1.3 Aplicar Esquema SQL:** Ejecuta el esquema de base de datos en tu editor SQL de Supabase (o herramienta de gestión de DB).
+    *   **Archivo del Esquema:** `api/schema.sql` (disponible en este repositorio).
+    *   Este esquema define:
+        *   `job_status` ENUM con estados como `LEAD`, `AGENDADO`, `EN_REVISION`, etc.
+        *   La tabla `jobs` con campos para datos del cliente, vehículo, descripción del problema, estado (`current_status`), porcentaje de progreso (`progress_percentage`), notas internas (`internal_notes`) y fecha agendada (`scheduled_date`).
 
-```
-https://api.telegram.org/bot<TU_BOT_TOKEN>/setWebhook?url=<TU_URL_DE_VERCEL>/api
-```
+### 2. Configuración del Proyecto en Vercel
 
--   `<TU_BOT_TOKEN>`: El token de tu bot.
--   `<TU_URL_DE_VERCEL>`: La URL que Vercel te proporcionó.
+*   **2.1 Importar Repositorio:** Conecta tu cuenta de Vercel con tu proveedor de Git (GitHub, GitLab, Bitbucket) e importa este repositorio.
+*   **2.2 Configurar Variables de Entorno Críticas:** Añade las siguientes variables de entorno en la configuración de tu proyecto Vercel (en `Settings` > `Environment Variables`). Asegúrate de que estén disponibles para los entornos de `Production`, `Preview` y `Development`.
 
-**Ejemplo:**
-```
-https://api.telegram.org/bot123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11/setWebhook?url=https://mi-bot.vercel.app/api
-```
+    *   `TELEGRAM_BOT_TOKEN`:
+        *   **Descripción:** Token único de autenticación de tu bot, obtenido de [@BotFather](https://t.me/BotFather) en Telegram.
+        *   **Valor:** `TU_TOKEN_DE_BOT`
+    *   `POSTGRES_URL`:
+        *   **Descripción:** URL de conexión a tu base de datos PostgreSQL.
+        *   **Valor:** La URL obtenida en el paso `1.2` de la configuración de la DB.
+    *   `STAFF_IDS`:
+        *   **Descripción:** Lista de IDs de usuario de Telegram autorizados para acceder a futuras funcionalidades de gestión interna (Mini App). **CRÍTICO para la seguridad de la Mini App.**
+        *   **Valor:** IDs numéricos de Telegram separados por comas (ej: `123456789,987654321`). Para obtener tu ID, puedes usar bots como [@Userinfobot](https://t.me/Userinfobot).
+    *   `VERCEL_URL`:
+        *   **Descripción:** La URL pública de tu proyecto Vercel (generada automáticamente por Vercel, pero vital para el webhook).
+        *   **Valor:** `https://tu-proyecto.vercel.app` (Vercel lo inyecta automáticamente en producción).
 
-Si todo va bien, Telegram responderá con: `{"ok":true,"result":true,"description":"Webhook was set"}`.
+### 3. Despliegue y Configuración Automatizada del Webhook
 
-¡Y listo! Tu bot ya está funcionando en Vercel.
+Una vez configuradas las variables de entorno y con la base de datos lista:
 
-## Desarrollo Local
+*   **Despliega el proyecto en Vercel.**
+*   **Webhook Automatizado:** La configuración del webhook de Telegram a tu URL de Vercel es **completamente automática**. Un script `postbuild` se encarga de registrar el webhook cada vez que se realiza un despliegue exitoso, eliminando la necesidad de pasos manuales.
 
-1.  **Instala la CLI de Vercel**:
-    ```bash
-    npm install -g vercel
-    ```
+## 🔒 Seguridad y Rendimiento
 
-2.  **Crea un archivo `.env`** en la raíz del proyecto y añade tu token:
-    ```
-    TELEGRAM_BOT_TOKEN="tu-token-aqui"
-    ```
+*   **Arquitectura Stateless:** El bot opera sin estado persistente en los servidores de Vercel, delegando toda la gestión de estado a PostgreSQL, lo que mejora la escalabilidad y el rendimiento.
+*   **Protección contra Inyección:** Todas las interacciones con la base de datos utilizan *prepared statements* para prevenir ataques de inyección SQL.
+*   **Validación y Escapado:** Se implementa validación básica de entradas de usuario y escapado de Markdown en las salidas del bot para mitigar riesgos.
+*   **Control de Acceso (Mini App):** La variable `STAFF_IDS` establece una base para el control de acceso de usuarios privilegiados, esencial para la seguridad de la futura Mini App de gestión.
 
-3.  **Inicia el servidor de desarrollo**:
-    ```bash
-    vercel dev
-    ```
-    El comando `vercel dev` cargará las variables de tu archivo `.env` y simulará el entorno de Vercel en tu máquina local.
+## 💻 Desarrollo Local
+
+Para desarrollar y probar el bot localmente:
+
+1.  **Instala la CLI de Vercel:** `npm install -g vercel`
+2.  **Crea un archivo `.env`** en la raíz del proyecto. Copia y pega las variables de entorno críticas definidas en la sección `2.2` de Despliegue, sustituyendo los valores. Asegúrate de incluir `TELEGRAM_BOT_TOKEN`, `POSTGRES_URL` y `STAFF_IDS`.
+3.  **Inicia el servidor de desarrollo:** `vercel dev`
+    *   `vercel dev` cargará las variables de tu archivo `.env` y simulará el entorno de Vercel en tu máquina local.

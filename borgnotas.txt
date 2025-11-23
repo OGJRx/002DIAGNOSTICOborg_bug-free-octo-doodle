@@ -1,62 +1,27 @@
+Entendido. Hemos alcanzado un excelente punto de parada por hoy.
 
----
-# DIAGNÓSTICO BORG - Notas de Arquitectura y Despliegue para DevOps
+**Resumen del Estado Actual y Documentación Actualizada:**
 
-## 1. Resumen del Proyecto
+Hemos completado una fase de implementación y refactorización significativa. El estado actual del proyecto se refleja ahora de manera precisa en los siguientes archivos informativos clave:
 
-*   **Nombre:** DIAGNÓSTICO BORG
-*   **Objetivo:** Automatización de bajo coste ($0) para talleres automotrices mediante un bot de Telegram y una Mini App.
-*   **Stack Principal:** TypeScript, Vercel Serverless, PostgreSQL (Neon/Supabase), Grammy.
+1.  **`README.md`:** Ha sido completamente reescrito y ahora sirve como una guía integral y profesional orientada a DevOps. Documenta:
+    *   Las capacidades actuales y el potencial de despliegue del bot (`/agendar`, `/estado`, `/cotizar`).
+    *   Una guía de despliegue paso a paso para Vercel.
+    *   La configuración de variables de entorno críticas (`TELEGRAM_BOT_TOKEN`, `POSTGRES_URL`, `STAFF_IDS`).
+    *   La automatización de CI/CD para el webhook, que elimina la necesidad de configuración manual post-despliegue.
+    *   Las medidas de seguridad y rendimiento implementadas.
 
-## 2. Arquitectura y Componentes Clave
+2.  **`api/schema.sql`:** Este nuevo archivo contiene el esquema definitivo y ejecutable de la base de datos PostgreSQL, sirviendo como la "fuente de la verdad" para la estructura de la base de datos, un artefacto esencial para cualquier despliegue.
 
-*   **Bot de Telegram (Backend):**
-    *   **Plataforma:** Vercel Serverless Functions.
-    *   **Framework:** `grammy` (Node.js/TypeScript).
-    *   **Estado:** Completamente *stateless* en Vercel. Toda la persistencia de estado (progreso de conversaciones, datos de citas) se gestiona a través de la base de datos PostgreSQL.
-    *   **Máquina de Estados:** Implementada mediante la persistencia de `current_step` y `temp_data` en la tabla `bot_sessions` de PostgreSQL.
-    *   **Webhook:** Requiere configuración en Telegram apuntando a la URL de la función serverless en Vercel (p.ej., `/api/webhook`).
-*   **Base de Datos:**
-    *   **Tipo:** PostgreSQL.
-    *   **Proveedor:** Se recomienda Neon o Supabase (por sus planes gratuitos).
-    *   **Esquema:** Incluye tablas `jobs` (para citas y trabajos) y `bot_sessions` (para estado del bot). El esquema detallado se encuentra en `@borg001.md`.
-*   **Mini App (Futuro):**
-    *   **Seguridad:** Verificación de `initData` mediante HMAC-SHA256 usando el `BOT_TOKEN`.
-    *   **Autorización:** Verificación de `user_id` contra `STAFF_IDS` configurados en variables de entorno.
+3.  **Código Fuente (`api/_bot.ts`, `api/_db.ts`):** El código ha sido actualizado para reflejar el esquema SQL, implementar la lógica de los comandos, y reforzar la seguridad y el manejo de errores.
 
-## 3. Configuración de Despliegue (Vercel)
+**Potenciales Próximos Pasos para la Siguiente Sesión:**
 
-*   **Lenguaje:** TypeScript.
-*   **Build Process:** Vercel gestiona automáticamente la compilación de TypeScript. `tsconfig.json` está configurado para este fin.
-*   **Archivo Principal:** `api/index.ts` (o similar, según la estructura de Vercel API Routes).
-*   **Webhook Setup:** Se requiere un script (ej. `scripts/set-webhook.ts`) para configurar el endpoint del webhook de Telegram post-despliegue. Este script necesitará la `VERCEL_URL`.
+Basado en el estado actual y los objetivos del proyecto, las siguientes son las áreas de ejecución lógica y de alto impacto que podemos abordar a continuación:
 
-## 4. Variables de Entorno Críticas (Requieren configuración segura en Vercel)
+1.  **Desarrollo del Frontend de la Mini App de Gestión:** Con la base de datos y la autorización de personal (`STAFF_IDS`) ya implementadas, el siguiente gran paso es comenzar a construir la interfaz de usuario de la Mini App interna para que el personal gestione los trabajos (`jobs`).
+2.  **Implementación de Lógica Avanzada para `/cotizar`:** Expandir el comando `/cotizar` para que inicie un flujo conversacional, recopile detalles del vehículo y del problema, y cree un nuevo registro en la tabla `jobs` con el estado `'LEAD'`, notificando al personal.
+3.  **Sistema de Notificaciones para el Personal:** Implementar una funcionalidad que envíe notificaciones a un grupo de Telegram de personal (utilizando la variable `STAFF_GROUP_ID`) cada vez que se cree un nuevo `LEAD` a través de `/cotizar` o se agende una nueva cita con `/agendar`.
+4.  **Implementación de Pruebas Unitarias y de Integración:** Utilizar `vitest` (ya en el proyecto) para escribir pruebas para las funciones de base de datos y los manejadores de comandos, asegurando la robustez y la salud a largo plazo del código.
 
-*   **`TELEGRAM_BOT_TOKEN`**: Token de autenticación de tu bot de Telegram. **(Secreto)**
-*   **`POSTGRES_URL`**: URL de conexión a la base de datos PostgreSQL (Neon/Supabase). **(Secreto)**
-*   **`STAFF_IDS`**: Lista separada por comas de IDs de usuario de Telegram autorizados para acciones de staff (ej. `12345678,98765432`).
-*   **`STAFF_GROUP_ID`**: ID del chat de grupo de Telegram donde se enviarán las notificaciones al staff.
-*   **`VERCEL_URL`**: La URL pública de tu proyecto en Vercel. Necesaria para la configuración del webhook y la seguridad de la Mini App.
-
-## 5. Requisitos de Seguridad y Robustez
-
-*   **Validación de Entradas:** Implementar validaciones estrictas para todas las entradas de usuario (longitud, caracteres permitidos) y para el `initData` de la Mini App (HMAC, TTL, `STAFF_IDS`).
-*   **Protección contra Inyección:**
-    *   Usar siempre *prepared statements* para todas las interacciones con PostgreSQL.
-    *   Escapar el contenido del usuario antes de enviarlo en mensajes de Telegram al staff (para prevenir abuso de Markdown/XSS).
-*   **Idempotencia:** Diseñar handlers de webhook para ser idempotentes y manejar reintentos de Telegram (ej. registrando `update_id`).
-*   **Manejo de Errores:** Implementar manejo robusto de errores en todas las funciones críticas (DB, Telegram API, Vercel Functions) y registrar logs detallados.
-*   **Coste Cero:** Asegurarse de que todas las configuraciones (DB, Vercel) se mantengan dentro de los límites de los planes gratuitos.
-
-## 6. Estado Actual y Próximos Pasos
-
-*   **Estado Actual:** El código base compila correctamente y está listo para el despliegue. Se ha implementado una solución pragmática y documentada para un problema de tipado complejo en las librerías de `grammy`.
-*   **Próximos Pasos:**
-    1.  **Despliegue en Vercel:** Realizar el despliegue y configurar las variables de entorno.
-    2.  **Configurar Webhook:** Ejecutar el script `set-webhook.ts` para registrar el endpoint de Vercel en Telegram.
-    3.  **Validar Funcionalidad Básica:** Probar el comando `/start`.
-    4.  **Implementar Lógica Avanzada:** Completar la conversación `/agendar` (con interacción a la base de datos (`pg`), e implementar otros comandos (`/estado`, `/cotizar`, etc.).
-    *   *Nota:* La integración de IA se considerará en una fase posterior, si es compatible con la restricción de coste cero.
-
----
+Hemos concluido por hoy. El proyecto está en un estado sólido y bien documentado para continuar en nuestra próxima sesión.
