@@ -1,8 +1,8 @@
 import { Bot } from "grammy";
 import { Update, Message, User, Chat } from "grammy/types";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { MyContext, SessionData } from "./_types";
-import { Job, getSession, createJob, createJobEvent, getNextJobId } from "./_db";
+import { MyContext, SessionData } from "../api/_types";
+import { Job, getSession, createJob, createJobEvent, getNextJobId } from "../api/_db";
 import fs from "fs";
 import yaml from "js-yaml";
 import path from "path";
@@ -11,8 +11,8 @@ import path from "path";
 vi.mock("fs");
 vi.mock("js-yaml");
 vi.mock("path");
-vi.mock("./_db");
-vi.mock("./_context");
+vi.mock("../api/_db");
+vi.mock("../api/_context");
 
 // Configure mocks for fs, js-yaml, and path at the top level
 const mockFlow = {
@@ -61,7 +61,7 @@ describe("Bot Logic with Correct Mocking", () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    const botModule = await import("./_bot");
+    const botModule = await import("../api/_bot");
     setupBot = botModule.setupBot;
 
     bot = new Bot<MyContext>("test-token");
