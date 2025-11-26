@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import { fmt } from "@grammyjs/parse-mode";
 import * as fs from "fs";
+import { isAdmin } from "./_middlewares";
 import * as path from "path";
 import * as yaml from "js-yaml";
 import {
@@ -41,6 +42,10 @@ export function setupBot(bot: Bot<MyContext>) {
 
   bot.command("start", async (ctx) => {
     await ctx.reply("¡Hola! Soy DIAGNÓSTICO BORG. ¡Listo para automatizar!");
+  });
+
+  bot.command("admin", isAdmin, async (ctx) => {
+    await ctx.reply("Welcome, admin! Here are the admin commands...");
   });
 
   bot.command("agendar", (ctx) => {
