@@ -12,5 +12,9 @@
       "src": "api/diagnose.ts",
       "use": "@vercel/node"
     }
+  ],
+  "routes": [
+    { "src": "/api/diagnose", "dest": "/api/diagnose.ts" },
+    { "src": "/api/(.*)", "dest": "/api/index.ts" }
   ]
 }
