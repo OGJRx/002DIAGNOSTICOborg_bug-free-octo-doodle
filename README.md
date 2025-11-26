@@ -70,21 +70,8 @@ El bot utiliza PostgreSQL para persistir los datos de trabajos y sesiones.
 
 Una vez configuradas las variables de entorno y con la base de datos lista:
 
-*   **Despliega el proyecto en Vercel.** Después del despliegue, Vercel ejecutará automáticamente el script `scripts/set-webhook.ts` (`npm run postbuild` -> `npm run set-webhook`).
-*   **Verificación y Configuración Manual del Webhook (Si es Necesario):** Si el webhook automático falla (ej. `TELEGRAM_BOT_TOKEN` o `VERCEL_URL` no estaban disponibles en el momento del despliegue) o necesitas configurarlo/verificarlo manualmente, sigue estos pasos:
-    1.  **Obtén la URL de tu despliegue:** La URL base de tu proyecto Vercel (ej. `https://diagnsticoborg.vercel.app`).
-    2.  **Forma la URL del Webhook:** Tu webhook debe apuntar a la ruta `/api` de tu despliegue Vercel. La URL correcta será `https://<TU_URL_DE_VERCEL>/api`. Asegúrate de que **NO HAYA ESPACIOS EXTRA** antes o después de `/api`.
-    3.  **Configura el Webhook:** Abre esta URL en tu navegador (sustituyendo `<TU_TOKEN_DE_BOT>` y `<TU_URL_DE_VERCEL>`):
-        ```
-        https://api.telegram.org/bot<TU_TOKEN_DE_BOT>/setWebhook?url=https://<TU_URL_DE_VERCEL>/api
-        ```
-        Ejemplo: `https://api.telegram.org/bot123456:ABC...XYZ/setWebhook?url=https://diagnsticoborg.vercel.app/api`
-    4.  **Verifica el Estado del Webhook:** Para confirmar que el webhook se configuró correctamente y verificar si hay errores, abre esta URL en tu navegador:
-        ```
-        https://api.telegram.org/bot<TU_TOKEN_DE_BOT>/getWebhookInfo
-        ```
-        Busca el campo `url` en la respuesta JSON. Debe coincidir exactamente con `https://<TU_URL_DE_VERCEL>/api`. Si `last_error_message` está presente, indica problemas en la entrega de actualizaciones.
-        **¡ADVERTENCIA CRÍTICA!** Un error común es incluir un espacio extra en la URL, como `https://<TU_URL_DE_VERCEL>/ /api`. Este espacio generará un error `404 Not Found` por parte de Vercel y hará que tu bot no funcione. Asegúrate de que la URL sea `https://<TU_URL_DE_VERCEL>/api`.
+*   **Despliega el proyecto en Vercel.**
+*   **Webhook Automatizado:** La configuración del webhook de Telegram a tu URL de Vercel es **completamente automática**. Un script `postbuild` se encarga de registrar el webhook cada vez que se realiza un despliegue exitoso, eliminando la necesidad de pasos manuales.
 
 ## 🔒 Seguridad y Rendimiento
 

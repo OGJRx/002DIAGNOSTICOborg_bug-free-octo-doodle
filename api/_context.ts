@@ -11,13 +11,7 @@ export class App {
     if (!process.env.POSTGRES_URL || !process.env.TELEGRAM_BOT_TOKEN) {
       throw new Error("Missing required environment variables");
     }
-    this.dbPool = new Pool({
-      connectionString: process.env.POSTGRES_URL,
-      // Required for Vercel to connect to Supabase DB
-      ssl: {
-        rejectUnauthorized: false,
-      },
-    });
+    this.dbPool = new Pool({ connectionString: process.env.POSTGRES_URL });
     this.bot = new Bot<MyContext>(process.env.TELEGRAM_BOT_TOKEN);
   }
 

@@ -9,6 +9,3 @@ node_modules/
 dist/
 notas_borgptron/
 borgprogreso.md
-
-# Log files
-*.log

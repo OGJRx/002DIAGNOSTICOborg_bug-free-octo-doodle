@@ -29,16 +29,21 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    console.log("POSTGRES_URL is present");
+    console.log("Initializing new Pool with SSL config...");
+
     const pool = new Pool({
       connectionString: process.env.POSTGRES_URL,
-      // Required for Vercel to connect to Supabase DB
       ssl: {
         rejectUnauthorized: false,
       },
     });
+
+    console.log("Pool initialized. Attempting to connect...");
     let client;
     try {
       client = await pool.connect();
+      console.log("pool.connect() succeeded.");
       res.status(200).json({
         dns: dnsResult,
         database: {
@@ -47,6 +52,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
         },
       });
     } catch (dbErr) {
+      console.error("pool.connect() FAILED. Error details:", dbErr);
       res.status(500).json({
         dns: dnsResult,
         error: "Database connection test failed",
