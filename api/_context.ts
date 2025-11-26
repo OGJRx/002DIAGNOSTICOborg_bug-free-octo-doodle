@@ -1,8 +1,9 @@
 import { Bot } from "grammy";
 import { Pool, PoolConfig } from "pg";
 import { MyContext } from "./_types";
-import { lookup } from "dns/promises"; // Import dns.promises for async lookup
-import { URL } from "url"; // Import URL to parse connection string
+import { lookup } from "dns/promises";
+import { URL } from "url";
+import { logger } from "./_logger";
 
 export class App {
   private static instance: App;
@@ -31,13 +32,19 @@ export class App {
 
       // Perform DNS lookup if hostname is not an IP address
       // (This prevents trying to lookup an already resolved IP, which dns.lookup would fail)
-      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) && !/^\[.*\]$/.test(host)) { // Basic check for IPv4 or IPv6 literal
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) && !/^\[.*\]$/.test(host)) {
         try {
-          const { address } = await lookup(dbUrl.hostname, { family: 4 }); // Force IPv4 resolution
-          host = address; // Use the resolved IP address
-          console.log(`Resolved DB host '${dbUrl.hostname}' to IP: ${host}`);
+          const { address } = await lookup(dbUrl.hostname, { family: 4 });
+          host = address;
+          logger.info("DNS lookup successful", {
+            originalHost: dbUrl.hostname,
+            resolvedHost: host,
+          });
         } catch (dnsErr) {
-          console.error(`Failed to resolve DB host '${dbUrl.hostname}':`, dnsErr);
+          logger.error("DNS lookup failed", {
+            originalHost: dbUrl.hostname,
+            error: dnsErr,
+          });
           throw new Error(`Failed to resolve database host: ${dbUrl.hostname}`);
         }
       }
