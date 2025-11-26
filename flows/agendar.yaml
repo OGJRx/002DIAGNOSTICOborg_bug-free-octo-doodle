@@ -1,0 +1,45 @@
+initial_step: "AWAIT_NAME"
+steps:
+  AWAIT_NAME:
+    prompt: "Para comenzar, por favor, introduce tu nombre completo:"
+    persist_as: "customer_name"
+    transition_to: "AWAIT_PHONE"
+
+  AWAIT_PHONE:
+    prompt: "Gracias, {customer_name}. ¿Podrías proporcionarme tu número de teléfono de contacto?"
+    persist_as: "customer_phone"
+    transition_to: "AWAIT_VEHICLE"
+
+  AWAIT_VEHICLE:
+    prompt: "Perfecto. Ahora, por favor, indícame la marca y modelo de tu vehículo (ej: Toyota Corolla 2021)."
+    persist_as: "vehicle_make_model"
+    transition_to: "AWAIT_PROBLEM"
+
+  AWAIT_PROBLEM:
+    prompt: "Entendido. Describe brevemente el problema que presenta tu vehículo o el servicio que necesitas."
+    persist_as: "problem_description"
+    transition_to: "AWAIT_DATE"
+
+  AWAIT_DATE:
+    prompt: "Casi hemos terminado. ¿Qué día te gustaría agendar la cita? (ej: 28 de Noviembre de 2025)"
+    persist_as: "scheduled_date"
+    transition_to: "CONFIRMATION"
+
+  CONFIRMATION:
+    prompt: |
+      Por favor, confirma que los datos son correctos:
+      - **Nombre:** {customer_name}
+      - **Teléfono:** {customer_phone}
+      - **Vehículo:** {vehicle_make_model}
+      - **Problema:** {problem_description}
+      - **Fecha Deseada:** {scheduled_date}
+
+      ¿Es todo correcto? (Responde "Sí" para confirmar o "No" para cancelar)
+    transition_on_positive: "__COMMIT__"
+    transition_on_negative: "__CANCEL__"
+
+  __COMMIT__:
+    prompt: "¡Gracias! Tu cita ha sido agendada con éxito. Recibirás una confirmación en breve."
+
+  __CANCEL__:
+    prompt: "Entendido. La operación ha sido cancelada. Puedes iniciar de nuevo con /agendar cuando quieras."

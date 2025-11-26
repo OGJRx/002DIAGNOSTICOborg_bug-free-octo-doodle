@@ -3,13 +3,14 @@
   "builds": [
     {
       "src": "api/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "rewrites": [
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["flows/**"]
+      }
+    },
     {
-      "source": "/api",
-      "destination": "/api/index.ts"
+      "src": "api/diagnose.ts",
+      "use": "@vercel/node"
     }
   ]
 }

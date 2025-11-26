@@ -15,7 +15,14 @@ El bot DIAGNÓSTICO BORG ofrece las siguientes funcionalidades clave, accesibles
     *   Fecha Deseada para la Cita
     Los datos se persisten de forma segura en una base de datos PostgreSQL.
 *   `/estado`: Permite a los usuarios consultar el estado de sus trabajos. Pueden hacerlo proporcionando un ID de trabajo específico (`/estado [ID_DE_TRABAJO]`) o listando todos los trabajos asociados a su cuenta de Telegram. La información se obtiene directamente de la base de datos.
-*   `/cotizar` - **Solicitud de Cotización Inicial (Lógica Avanzada en Desarrollo):** Un comando para que los usuarios soliciten una cotización. Actualmente, el bot solicita al usuario que describa su necesidad en detalle, sentando las bases para futuras implementaciones de lógica de precios más sofisticada.
+*   `/cotizar` - **Solicitud de Cotización Inicial (Lógica Avanzada en Desarrollo):** Un comando para que los usuarios soliciten una cotización. Actualmente, el bot solicita al usuario que describa su necesidad en detalle, sentando las las bases para futuras implementaciones de lógica de precios más sofisticada.
+
+## 🏛️ Arquitectura
+
+La arquitectura de DIAGNÓSTICO BORG se basa en dos principios fundamentales: **Event Sourcing** y **Dependency Injection**, diseñados para máxima robustez, testabilidad y escalabilidad en un entorno serverless.
+
+*   **Event Sourcing:** En lugar de modificar directamente el estado de los trabajos (el "read model"), cada cambio se registra como un evento inmutable en la tabla `job_events`. Esto proporciona un historial de auditoría completo y permite reconstruir el estado de cualquier trabajo en cualquier momento.
+*   **Dependency Injection (`AppContext`):** La aplicación utiliza un patrón de inyección de dependencias a través de un `AppContext`. Este contexto, creado en `api/_context.ts`, contiene las instancias de la base de datos (`Pool`) y del bot (`Bot`). Los manejadores y la lógica de negocio reciben este contexto como un parámetro, lo que los desacopla de las implementaciones concretas y facilita enormemente las pruebas.
 
 ## 🛠️ Stack Tecnológico
 
@@ -34,7 +41,7 @@ Sigue estos pasos para desplegar y configurar el bot DIAGNÓSTICO BORG en tu ent
 El bot utiliza PostgreSQL para persistir los datos de trabajos y sesiones.
 
 *   **1.1 Crear Proyecto en Supabase:** Crea un nuevo proyecto en Supabase (o tu proveedor de PostgreSQL preferido).
-*   **1.2 Obtener `POSTGRES_URL`:** Una vez creado el proyecto, ve a `Project Settings` > `Database` > `Connection String` para obtener la URL de conexión de tu base de datos.
+*   **1.2 Obtener `DATABASE_URL`:** Una vez creado el proyecto, ve a `Project Settings` > `Database` > `Connection String` para obtener la URL de conexión de tu base de datos.
 *   **1.3 Aplicar Esquema SQL:** Ejecuta el esquema de base de datos en tu editor SQL de Supabase (o herramienta de gestión de DB).
     *   **Archivo del Esquema:** `api/schema.sql` (disponible en este repositorio).
     *   Este esquema define:
@@ -49,7 +56,7 @@ El bot utiliza PostgreSQL para persistir los datos de trabajos y sesiones.
     *   `TELEGRAM_BOT_TOKEN`:
         *   **Descripción:** Token único de autenticación de tu bot, obtenido de [@BotFather](https://t.me/BotFather) en Telegram.
         *   **Valor:** `TU_TOKEN_DE_BOT`
-    *   `POSTGRES_URL`:
+    *   `DATABASE_URL`:
         *   **Descripción:** URL de conexión a tu base de datos PostgreSQL.
         *   **Valor:** La URL obtenida en el paso `1.2` de la configuración de la DB.
     *   `STAFF_IDS`:
@@ -78,6 +85,12 @@ Una vez configuradas las variables de entorno y con la base de datos lista:
 Para desarrollar y probar el bot localmente:
 
 1.  **Instala la CLI de Vercel:** `npm install -g vercel`
-2.  **Crea un archivo `.env`** en la raíz del proyecto. Copia y pega las variables de entorno críticas definidas en la sección `2.2` de Despliegue, sustituyendo los valores. Asegúrate de incluir `TELEGRAM_BOT_TOKEN`, `POSTGRES_URL` y `STAFF_IDS`.
+2.  **Crea un archivo `.env`** en la raíz del proyecto. Copia y pega las variables de entorno críticas definidas en la sección `2.2` de Despliegue, sustituyendo los valores. Asegúrate de incluir `TELEGRAM_BOT_TOKEN`, `DATABASE_URL` y `STAFF_IDS`.
 3.  **Inicia el servidor de desarrollo:** `vercel dev`
     *   `vercel dev` cargará las variables de tu archivo `.env` y simulará el entorno de Vercel en tu máquina local.
+
+## Security & Data Flow
+
+*   **`initData` Validation (HMAC-SHA-256):** Securely validates data from the Telegram Mini App.
+*   **Prepared Statements:** Prevents SQL injection vulnerabilities.
+*   **`STAFF_IDS` Access Control:** Restricts access to authorized staff members.

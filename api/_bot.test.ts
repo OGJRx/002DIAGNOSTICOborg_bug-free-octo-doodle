@@ -1,73 +1,95 @@
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import type { Update } from 'grammy/types';
+import { Bot } from "grammy";
+import { Update, Message, User, Chat } from "grammy/types";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { MyContext, SessionData } from "./_types";
+import { Job, getSession, createJob, createJobEvent, getNextJobId } from "./_db";
+import fs from "fs";
+import yaml from "js-yaml";
+import path from "path";
 
-// Esta variable contendrá la instancia del bot después de mockear las variables de entorno.
-let bot: any;
-// Declaramos el "spy" para `sendMessage` fuera de los hooks para que sea accesible.
-let sendMessageSpy: ReturnType<typeof vi.spyOn>;
+// Mock dependencies at the top level
+vi.mock("fs");
+vi.mock("js-yaml");
+vi.mock("path");
+vi.mock("./_db");
+vi.mock("./_context");
 
-describe('Bot Commands', () => {
+// Configure mocks for fs, js-yaml, and path at the top level
+const mockFlow = {
+  initial_step: "AWAIT_NAME",
+  steps: {
+    AWAIT_NAME: { prompt: "Name?", persist_as: "customer_name", transition_to: "CONFIRMATION" },
+    CONFIRMATION: { prompt: "Confirm?", transition_on_positive: "__COMMIT__", transition_on_negative: "__CANCEL__" },
+    __COMMIT__: { prompt: "Thanks!" },
+    __CANCEL__: { prompt: "Cancelled." },
+  },
+};
+vi.mocked(fs.readFileSync).mockReturnValue("---");
+vi.mocked(yaml.load).mockReturnValue(mockFlow);
+vi.mocked(path.join).mockReturnValue("/mock/path/to/flow.yaml");
 
-  // Este hook se ejecuta una vez antes de todas las pruebas en este bloque 'describe'.
-  beforeAll(async () => {
-    // 1. Mockeamos la variable de entorno ANTES de que se cargue cualquier módulo que la use.
-    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test_token_123');
 
-    // 2. Importamos dinámicamente _bot DESPUÉS de que la variable de entorno esté mockeada.
-    const mod = await import('./_bot');
-    bot = mod.bot;
+const mockBotInfo: User = {
+  id: 42, is_bot: true, first_name: "Test Bot", username: "testbot",
+};
 
-    // 3. Mockeamos la llamada a la API `getMe` *antes* de que `bot.init()` la realice.
-    vi.spyOn(bot.api, 'getMe').mockResolvedValue({
-      id: 123456789,
-      is_bot: true,
-      first_name: 'TestBot',
-      username: 'test_bot',
-      can_join_groups: true,
-      can_read_all_group_messages: false,
-      supports_inline_queries: false,
-    });
+const createMockContext = (text: string, isCommand = false) => {
+  const from: User = { id: 123, is_bot: false, first_name: "Test" };
+  const chat: Chat.PrivateChat = { id: 456, type: "private", first_name: "Test" };
 
-    // 4. Inicializamos el bot explícitamente. Ahora `bot.init()` debería tener éxito.
+  const message: Message.TextMessage = {
+    text, message_id: 1, date: Date.now(), from, chat,
+  };
+
+  if (isCommand) {
+    message.entities = [{ type: 'bot_command', offset: 0, length: text.length }];
+  }
+  const update: Update = { update_id: 1, message: message };
+  return {
+    update, message, from, chat,
+    db: { query: vi.fn() }, reply: vi.fn(), match: ""
+  } as unknown as MyContext;
+};
+
+describe("Bot Logic with Correct Mocking", () => {
+  let bot: Bot<MyContext>;
+  let setupBot: any;
+
+  const simulateUpdate = (ctx: MyContext) => bot.middleware()(ctx);
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+
+    const botModule = await import("./_bot");
+    setupBot = botModule.setupBot;
+
+    bot = new Bot<MyContext>("test-token");
+    vi.spyOn(bot.api, "getMe").mockResolvedValue(mockBotInfo);
     await bot.init();
-
-    // 5. Espiamos el método `sendMessage` *después* de que el bot esté inicializado.
-    sendMessageSpy = vi.spyOn(bot.api, 'sendMessage');
+    setupBot(bot);
   });
 
-  // Este hook se ejecuta después de cada prueba individual.
-  afterEach(() => {
-    sendMessageSpy.mockClear();
-  });
-
-  // Este hook se ejecuta una vez después de todas las pruebas en este bloque 'describe'.
-  afterAll(() => {
-    vi.unstubAllEnvs();
-    // Ahora `sendMessageSpy` debería estar definido y `mockRestore` funcionará.
-    sendMessageSpy.mockRestore();
-  });
-
-  // La prueba específica para el comando /start
-  it('should reply with a welcome message on /start command', async () => {
-    const fakeUpdate: Update = {
-      update_id: 1,
-      message: {
-        message_id: 1,
-        date: Date.now(),
-        chat: { id: 12345, type: 'private', first_name: 'Test' },
-        text: '/start',
-        from: { id: 12345, is_bot: false, first_name: 'Test' },
-        entities: [{ type: 'bot_command', offset: 0, length: 6 }],
-      },
+  test("should handle confirmation and be event-first", async () => {
+    const finalSession: SessionData = {
+      current_step: "CONFIRMATION",
+      flow_data: { customer_name: "Jane Doe" },
     };
+    const ctxFinal = createMockContext("Sí");
+    vi.mocked(getSession).mockResolvedValueOnce(finalSession);
 
-    await bot.handleUpdate(fakeUpdate);
+    const mockJobId = 123;
+    const mockJob = { job_id: mockJobId } as Job;
+    vi.mocked(getNextJobId).mockResolvedValue(mockJobId);
+    vi.mocked(createJob).mockResolvedValue(mockJob);
+    vi.mocked(createJobEvent).mockResolvedValue({} as any);
 
-    expect(sendMessageSpy).toHaveBeenCalledOnce();
-    expect(sendMessageSpy).toHaveBeenCalledWith(
-      12345, // chat_id
-      '¡Hola! Soy un bot de Telegram desplegado en Vercel. ¡Listo para automatizar!', // text
-      undefined // No hay opciones adicionales pasadas a reply en este caso
-    );
+    await simulateUpdate(ctxFinal);
+
+    const createJobEventCallOrder = vi.mocked(createJobEvent).mock.invocationCallOrder[0];
+    const createJobCallOrder = vi.mocked(createJob).mock.invocationCallOrder[0];
+
+    expect(createJobEventCallOrder).toBeLessThan(createJobCallOrder);
+    expect(ctxFinal.reply).toHaveBeenCalledWith(expect.stringContaining(`#${mockJobId}`));
   });
 });
