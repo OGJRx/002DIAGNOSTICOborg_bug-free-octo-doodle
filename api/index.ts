@@ -1,26 +1,36 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { webhookCallback } from "grammy";
+import { webhookCallback, Bot } from "grammy";
 import { App } from "./_context";
 import { setupBot } from "./_bot";
 import { MyContext } from "./_types";
 
-const app = App.getInstance();
-const bot = app.bot;
+let initializedBot: Bot<MyContext>;
+let handleUpdateFn: (req: VercelRequest, res: VercelResponse) => Promise<unknown>;
 
-bot.use(async (ctx: MyContext, next) => {
-  const client = await app.dbPool.connect();
-  ctx.db = client;
-  try {
-    await next();
-  } finally {
-    client.release();
-  }
-});
+// Async IIFE to initialize the bot once globally
+const initializeBotPromise = (async () => {
+  const app = await App.getInstance(); // Await the async getInstance
+  const bot = app.bot;
 
-setupBot(bot);
+  bot.use(async (ctx: MyContext, next) => {
+    const client = await app.dbPool.connect();
+    ctx.db = client;
+    try {
+      await next();
+    } finally {
+      client.release();
+    }
+  });
 
-const handleUpdate = webhookCallback(bot, "next-js");
+  setupBot(bot);
+  return bot;
+})();
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  await handleUpdate(req, res);
+  if (!initializedBot) {
+    initializedBot = await initializeBotPromise;
+    handleUpdateFn = webhookCallback(initializedBot, "next-js");
+  }
+
+  await handleUpdateFn(req, res);
 }
