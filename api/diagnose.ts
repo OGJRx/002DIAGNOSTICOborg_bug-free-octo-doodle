@@ -12,22 +12,23 @@ const HOSTNAME = process.env.POSTGRES_URL
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   logger.info("Starting /api/diagnose execution.");
   logger.info(
-    "POSTGRES_URL (redacted):",
-    process.env.POSTGRES_URL?.replace(/:([^:]*)@/, ":****@")
+    "POSTGRES_URL (redacted)",
+    { url: process.env.POSTGRES_URL?.replace(/:([^:]*)@/, ":****@") }
   );
-  logger.info("Resolved HOSTNAME from POSTGRES_URL:", HOSTNAME);
+  logger.info("Resolved HOSTNAME from POSTGRES_URL", { hostname: HOSTNAME });
 
   // --- Sonda DNS para un hostname público (google.com) ---
   try {
     const { address: googleAddress, family: googleFamily } =
       await dnsPromises.lookup("google.com", { family: 4 });
     logger.info(
-      `DNS lookup for google.com successful: ${googleAddress} (Family: ${googleFamily})`
+      "DNS lookup for google.com successful",
+      { address: googleAddress, family: googleFamily }
     );
   } catch (googleDnsErr: any) {
     logger.error(
-      "DNS lookup for google.com FAILED:",
-      googleDnsErr.message || googleDnsErr.toString()
+      "DNS lookup for google.com FAILED",
+      { error: googleDnsErr.message || googleDnsErr.toString() }
     );
   }
   // --- Fin Sonda DNS para google.com ---
@@ -44,11 +45,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       family,
       hostname: HOSTNAME,
     };
-    logger.info("Diagnostic DNS lookup for Supabase host successful:", dnsResult);
+    logger.info("Diagnostic DNS lookup for Supabase host successful", { result: dnsResult });
   } catch (err: any) { // Capturar el error para logging detallado
     logger.error(
-      "Diagnostic DNS lookup for Supabase host FAILED. Error details:",
-      err.message || err.toString()
+      "Diagnostic DNS lookup for Supabase host FAILED. Error details",
+      { error: err.message || err.toString() }
     );
     return res.status(500).json({
       error: "Diagnostic DNS lookup failed",

@@ -4,6 +4,30 @@ import { MyContext } from "./_types";
 import { lookup } from "dns/promises";
 import { URL } from "url";
 import { logger } from "./_logger";
+import { fetch } from "undici";
+
+async function resolveHostnameWithDoH(hostname: string): Promise<string> {
+  const url = `https://dns.google/resolve?name=${hostname}&type=A`;
+  logger.info(`Performing DoH lookup for ${hostname}`, { url });
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`DoH request failed with status: ${response.status}`);
+    }
+    const data: any = await response.json();
+    if (data.Answer && data.Answer.length > 0) {
+      const ipAddress = data.Answer[0].data;
+      logger.info(`DoH lookup successful for ${hostname}`, { ipAddress });
+      return ipAddress;
+    }
+    throw new Error(`No A records found for ${hostname} using DoH`);
+  } catch (error: any) {
+    logger.error(`DoH lookup failed for ${hostname}`, {
+      error: error.message || error.toString(),
+    });
+    throw new Error(`Could not resolve host ${hostname} using DoH`);
+  }
+}
 
 export class App {
   private static instance: App;
@@ -34,18 +58,28 @@ export class App {
       // (This prevents trying to lookup an already resolved IP, which dns.lookup would fail)
       if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) && !/^\[.*\]$/.test(host)) {
         try {
-          const { address } = await lookup(dbUrl.hostname, { family: 4 });
+          const address = await resolveHostnameWithDoH(dbUrl.hostname);
           host = address;
-          logger.info("DNS lookup successful", {
-            originalHost: dbUrl.hostname,
-            resolvedHost: host,
-          });
         } catch (dnsErr) {
-          logger.error("DNS lookup failed", {
+          logger.error("DNS lookup via DoH failed, falling back to native lookup.", {
             originalHost: dbUrl.hostname,
             error: dnsErr,
           });
-          throw new Error(`Failed to resolve database host: ${dbUrl.hostname}`);
+          // Fallback to native DNS lookup as a last resort
+          try {
+            const { address } = await lookup(dbUrl.hostname, { family: 4 });
+            host = address;
+            logger.info("Fallback DNS lookup successful", {
+              originalHost: dbUrl.hostname,
+              resolvedHost: host,
+            });
+          } catch (nativeDnsErr) {
+            logger.error("Fallback native DNS lookup also failed.", {
+              originalHost: dbUrl.hostname,
+              error: nativeDnsErr,
+            });
+            throw new Error(`Failed to resolve database host: ${dbUrl.hostname}`);
+          }
         }
       }
 

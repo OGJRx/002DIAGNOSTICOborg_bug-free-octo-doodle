@@ -11,4 +11,5 @@ export interface SessionData {
 export type MyContext = Context & {
   session: SessionData;
   db: PoolClient;
+  isStaff?: boolean;
 };
