@@ -33,7 +33,7 @@ export class App {
       // (This prevents trying to lookup an already resolved IP, which dns.lookup would fail)
       if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) && !/^\[.*\]$/.test(host)) { // Basic check for IPv4 or IPv6 literal
         try {
-          const { address } = await lookup(dbUrl.hostname);
+          const { address } = await lookup(dbUrl.hostname, { family: 4 }); // Force IPv4 resolution
           host = address; // Use the resolved IP address
           console.log(`Resolved DB host '${dbUrl.hostname}' to IP: ${host}`);
         } catch (dnsErr) {
